@@ -9,7 +9,11 @@ task_tmp=$(mktemp -d)
 trap 'rm -rf "$task_tmp"' EXIT
 
 extract_functions() {
-    rg -o 'up_[a-z_]+\(' "$1" | sed 's/($//' | sort -u
+    if command -v rg >/dev/null 2>&1; then
+        rg -o 'up_[a-z_]+\(' "$1"
+    else
+        grep -Eo 'up_[a-z_]+\(' "$1"
+    fi | sed 's/($//' | sort -u
 }
 
 extract_functions "$canonical" > "$task_tmp/canonical"
