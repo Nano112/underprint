@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Schem-at/underprint/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Schem-at/underprint/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Nano112/underprint/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Nano112/underprint/actions/workflows/ci.yml/badge.svg"></a>
   <a href="./LICENSE"><img alt="MIT licensed original source" src="https://img.shields.io/badge/source-MIT-0a7f6f"></a>
   <img alt="Rust 1.85 or newer" src="https://img.shields.io/badge/rust-1.85%2B-316c7a">
   <img alt="No Python runtime" src="https://img.shields.io/badge/python-not_required-34705b">
@@ -63,7 +63,7 @@ Model weights are intentionally not committed or bundled. Fetching them records
 and verifies the exact expected sizes and SHA-256 digests:
 
 ```bash
-git clone https://github.com/Schem-at/underprint.git
+git clone https://github.com/Nano112/underprint.git
 cd underprint
 ./scripts/fetch-models.sh
 cargo build --profile minimal-release -p underprint-cli -p underprint-ffi
@@ -174,17 +174,9 @@ and redistribution boundaries are documented in [NOTICE](./NOTICE),
 
 ## Figures
 
-The architecture and performance infographics are editable
-[Kineglyph](https://github.com/Nano112/kineglyph) scenes. Rebuild the committed
-SVGs with:
-
-```bash
-npm ci
-npm run render:figures
-```
-
-See Kineglyph's [Node and Bun guide](https://nano112.github.io/kineglyph/node-and-bun/)
-for the same scene-to-SVG workflow.
+The architecture and performance infographics are static SVG assets authored
+with [Kineglyph](https://github.com/Nano112/kineglyph). The performance bars use
+the published measurements linked above.
 
 ## Licence
 
