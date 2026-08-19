@@ -1,0 +1,6 @@
+{
+  "schema": "underprint.error/v1",
+  "code": "invalid_input",
+  "exit_code": 3,
+  "message": "cannot read missing.png"
+}

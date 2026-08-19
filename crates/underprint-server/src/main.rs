@@ -1,0 +1,113 @@
+use std::{env, io, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+
+use underprint::{CapabilitiesReport, Underprint};
+use underprint_server::{AppState, default_runtime, router};
+use underprint_trustmark::{TrustmarkEngine, descriptor, verify_models};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt()
+        .json()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "underprint_server=info,tower_http=info".into()),
+        )
+        .with_current_span(false)
+        .with_span_list(false)
+        .init();
+
+    let models =
+        PathBuf::from(env::var("UNDERPRINT_MODELS_DIR").unwrap_or_else(|_| "models".into()));
+    verify_models(&models)?;
+    let engine = Arc::new(TrustmarkEngine::load(&models)?);
+    engine.initialize()?;
+    let mut application = Underprint::default();
+    application.register(engine)?;
+    let capabilities = CapabilitiesReport::new(true, None, default_runtime(), vec![descriptor()]);
+    let address: SocketAddr = env::var("UNDERPRINT_BIND")
+        .unwrap_or_else(|_| "127.0.0.1:8080".into())
+        .parse()?;
+    let auth_token = env::var("UNDERPRINT_API_TOKEN")
+        .ok()
+        .filter(|value| !value.is_empty());
+    validate_bind_auth(address, auth_token.as_deref())?;
+    let state = AppState::ready(
+        application,
+        capabilities,
+        auth_token,
+        env_usize("UNDERPRINT_MAX_CONCURRENCY", 2),
+        env_u32("UNDERPRINT_REQUESTS_PER_SECOND", 10),
+    );
+    let timeout = Duration::from_secs(env_u64("UNDERPRINT_REQUEST_TIMEOUT_SECONDS", 30));
+    let listener = tokio::net::TcpListener::bind(address).await?;
+    tracing::info!(%address, "underprint service ready");
+    axum::serve(listener, router(state, timeout))
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+    tracing::info!("shutdown requested");
+}
+
+fn env_u64(name: &str, default: u64) -> u64 {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_u32(name: &str, default: u32) -> u32 {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_usize(name: &str, default: usize) -> usize {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn validate_bind_auth(address: SocketAddr, auth_token: Option<&str>) -> io::Result<()> {
+    if !address.ip().is_loopback() && auth_token.is_none_or(str::is_empty) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "UNDERPRINT_API_TOKEN is required for a non-loopback bind",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_bind_requires_authentication() {
+        assert!(validate_bind_auth("127.0.0.1:8080".parse().unwrap(), None).is_ok());
+        assert!(validate_bind_auth("0.0.0.0:8080".parse().unwrap(), None).is_err());
+        assert!(validate_bind_auth("0.0.0.0:8080".parse().unwrap(), Some("token")).is_ok());
+    }
+}

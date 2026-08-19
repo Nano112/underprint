@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use crate::{
     Detection, DetectionReport, DetectionState, EmbeddingReport, Error, ImagePolicy,
@@ -62,6 +62,7 @@ impl Underprint {
     }
 
     pub fn detect(&self, source: &[u8], profile: &str) -> Result<DetectionReport> {
+        let started = Instant::now();
         let engine = self.engine(profile)?;
         let loaded = load_image(source, &self.policy)?;
         let image = normalize_for_model(loaded.image, &self.policy);
@@ -82,7 +83,11 @@ impl Underprint {
             payload,
             artifacts: descriptor.artifacts.clone(),
         };
-        Ok(DetectionReport::new(loaded.summary, vec![detection]))
+        Ok(DetectionReport::new(
+            loaded.summary,
+            vec![detection],
+            elapsed_ms(started),
+        ))
     }
 
     pub fn embed(
@@ -91,6 +96,7 @@ impl Underprint {
         payload: &str,
         options: &EmbedOptions,
     ) -> Result<EmbeddingReport> {
+        let started = Instant::now();
         validate_bch5_payload(payload)?;
         let engine = self.engine(&options.profile)?;
         let loaded = load_image(source, &self.policy)?;
@@ -115,6 +121,7 @@ impl Underprint {
                     payload.to_owned(),
                     strength,
                     descriptor.artifacts.clone(),
+                    elapsed_ms(started),
                 ));
             }
         }
@@ -129,6 +136,10 @@ impl Underprint {
             .get(profile)
             .ok_or_else(|| Error::unavailable(format!("profile {profile} is unavailable")))
     }
+}
+
+fn elapsed_ms(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

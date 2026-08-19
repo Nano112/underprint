@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nano112/underprint/schemas/capabilities-v1.schema.json",
+  "title": "Underprint capabilities v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "build", "ready", "unavailable_reason", "runtime", "profiles"],
+  "properties": {
+    "schema": { "const": "underprint.capabilities/v1" },
+    "build": { "$ref": "common-v1.schema.json#/$defs/build" },
+    "ready": { "type": "boolean" },
+    "unavailable_reason": { "type": ["string", "null"] },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intra_threads", "cpu_arena", "memory_pattern", "prepacking"],
+      "properties": {
+        "intra_threads": { "type": "integer", "minimum": 1 },
+        "cpu_arena": { "type": "boolean" },
+        "memory_pattern": { "type": "boolean" },
+        "prepacking": { "type": "boolean" }
+      }
+    },
+    "profiles": { "type": "array", "items": { "$ref": "common-v1.schema.json#/$defs/profile" } }
+  }
+}

@@ -16,12 +16,18 @@ pub use error::{Error, ErrorKind, Result};
 pub use media::{ImagePolicy, LoadedImage, load_image, normalize_for_model, serialize_png};
 pub use orchestrator::{EmbedOptions, Underprint};
 pub use profile::{ArtifactDescriptor, Capability, ProfileDescriptor};
-pub use result::{Detection, DetectionReport, DetectionState, EmbeddingReport, InputSummary};
+pub use result::{
+    BuildInfo, CapabilitiesReport, Detection, DetectionReport, DetectionState, EmbeddingReport,
+    InputSummary, RuntimeConfiguration,
+};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ABI_VERSION: u32 = 1;
 pub const DETECTION_SCHEMA: &str = "underprint.detection/v1";
 pub const EMBEDDING_SCHEMA: &str = "underprint.embedding/v1";
 pub const CAPABILITIES_SCHEMA: &str = "underprint.capabilities/v1";
+pub const ERROR_SCHEMA: &str = "underprint.error/v1";
+pub const BUILD_SCHEMA: &str = "underprint.build/v1";
 pub const TRUSTMARK_Q_BCH5_PROFILE: &str = "trustmark-q-bch5@1";
 
 /// Validate Schematio's binary BCH-5 payload shape.
@@ -82,5 +88,39 @@ mod tests {
             strength_schedule(0.8, 1.0, 0.1).unwrap(),
             vec![0.8, 0.9, 1.0]
         );
+    }
+
+    #[test]
+    fn published_schema_contracts_match_runtime_identifiers() {
+        let contracts = [
+            (
+                include_str!("../../../schemas/capabilities-v1.schema.json"),
+                CAPABILITIES_SCHEMA,
+            ),
+            (
+                include_str!("../../../schemas/detection-v1.schema.json"),
+                DETECTION_SCHEMA,
+            ),
+            (
+                include_str!("../../../schemas/embedding-v1.schema.json"),
+                EMBEDDING_SCHEMA,
+            ),
+            (
+                include_str!("../../../schemas/error-v1.schema.json"),
+                ERROR_SCHEMA,
+            ),
+        ];
+        for (source, identifier) in contracts {
+            let schema: serde_json::Value = serde_json::from_str(source).unwrap();
+            assert_eq!(schema["properties"]["schema"]["const"], identifier);
+            assert_eq!(
+                schema["$schema"],
+                "https://json-schema.org/draft/2020-12/schema"
+            );
+        }
+        serde_json::from_str::<serde_json::Value>(include_str!(
+            "../../../schemas/common-v1.schema.json"
+        ))
+        .unwrap();
     }
 }

@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/Nano112/underprint/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Nano112/underprint/actions/workflows/ci.yml/badge.svg"></a>
   <a href="./LICENSE"><img alt="MIT licensed original source" src="https://img.shields.io/badge/source-MIT-0a7f6f"></a>
-  <img alt="Rust 1.85 or newer" src="https://img.shields.io/badge/rust-1.85%2B-316c7a">
+  <img alt="Rust 1.88 or newer" src="https://img.shields.io/badge/rust-1.88%2B-316c7a">
   <img alt="No Python runtime" src="https://img.shields.io/badge/python-not_required-34705b">
 </p>
 
@@ -35,12 +35,15 @@ fails closed.
 - Rust API and scriptable CLI with versioned JSON
 - Stable C ABI with opaque validated handles
 - Direct PHP FFI using contiguous binary buffers
+- Direct Go/cgo binding using the same ownership-safe C ABI
+- Optional bounded HTTP service and minimal non-root container
 - Lazy encoder and decoder sessions with explicit runtime policies
 - Exact cross-runtime decoding with TrustMark 0.9.1 / PyTorch
 
 The compatibility foundation is working and benchmarked. Underprint has not yet
-completed the production corpus, fuzzing, multi-platform release, or external
-security-audit gates tracked in the [roadmap](./TODO.md).
+completed the consented production corpus, sustained fuzz campaigns,
+production shadow rollout, or external legal/security review gates tracked in
+the [roadmap](./TODO.md).
 
 ## Measured, not guessed
 
@@ -154,9 +157,16 @@ library. The two separately acquired TrustMark Q models total about 62 MiB.
 | `crates/underprint-ffi` | Stable C ABI used by PHP and other languages |
 | `crates/underprint-cli` | Human and machine-readable command line |
 | `bindings/php` | Direct PHP FFI adapter |
+| `bindings/go` | Native cgo binding with ownership tests |
 | `vendor/trustmark` | Attributed, modified Adobe TrustMark Rust source |
 | `models` | Model manifest and separately downloaded artifacts |
 | `docs/requirements.md` | Full multi-algorithm product requirements |
+| `schemas` | Frozen JSON Schema contracts for public documents |
+| `docs/openapi.yaml` | Contract-tested HTTP API description |
+| `docs/decisions` | Accepted compatibility-release architecture decisions |
+| `docs/roadmap-blockers.md` | External evidence still required for production claims |
+| `FUTURE.md` | Non-normative algorithm and media expansion direction |
+| `deploy` | Hardened Compose and Kubernetes examples |
 | `TODO.md` | Executable roadmap and production gates |
 
 ## Evidence, not overclaiming

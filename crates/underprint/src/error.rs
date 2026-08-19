@@ -8,6 +8,7 @@ pub enum ErrorKind {
     InvalidArgument,
     InvalidInput,
     Unavailable,
+    UntrustedEvidence,
     ResourceLimit,
     Algorithm,
     Internal,
@@ -42,6 +43,10 @@ impl Error {
 
     pub fn resource_limit(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::ResourceLimit, message)
+    }
+
+    pub fn untrusted_evidence(message: impl Into<String>) -> Self {
+        Self::new(ErrorKind::UntrustedEvidence, message)
     }
 
     pub fn algorithm(message: impl Into<String>) -> Self {

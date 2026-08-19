@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, platform: linux-x86_64 }
+          - { os: ubuntu-24.04-arm, platform: linux-aarch64 }
+          - { os: macos-15-intel, platform: macos-x86_64 }
+          - { os: macos-15, platform: macos-aarch64 }
+          - { os: windows-2025, platform: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require the tag to match the workspace version
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)
+          test "$GITHUB_REF_NAME" = "v$version"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
+      - run: cargo test --workspace
+      - run: cargo build --locked --profile minimal-release -p underprint-cli -p underprint-ffi -p underprint-server
+      - name: Stage Unix artifacts
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p "dist/${{ matrix.platform }}/bin" "dist/${{ matrix.platform }}/lib"
+          cp target/minimal-release/underprint "dist/${{ matrix.platform }}/bin/"
+          cp target/minimal-release/underprint-server "dist/${{ matrix.platform }}/bin/"
+          find target/minimal-release -maxdepth 1 -type f \
+            \( -name 'libunderprint.so' -o -name 'libunderprint.dylib' \) \
+            -exec cp {} "dist/${{ matrix.platform }}/lib/" \;
+      - name: Stage Windows artifacts
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p "dist/${{ matrix.platform }}/bin" "dist/${{ matrix.platform }}/lib"
+          cp target/minimal-release/underprint.exe "dist/${{ matrix.platform }}/bin/"
+          cp target/minimal-release/underprint-server.exe "dist/${{ matrix.platform }}/bin/"
+          cp target/minimal-release/underprint.dll "dist/${{ matrix.platform }}/lib/"
+      - name: Stage portable contracts and notices
+        run: |
+          mkdir -p "dist/${{ matrix.platform }}/include" "dist/${{ matrix.platform }}/models"
+          cp include/underprint.h "dist/${{ matrix.platform }}/include/"
+          cp models/manifest.json models/README.md "dist/${{ matrix.platform }}/models/"
+          cp -R schemas "dist/${{ matrix.platform }}/schemas"
+          cp LICENSE NOTICE THIRD_PARTY_LICENSES.md SECURITY.md README.md "dist/${{ matrix.platform }}/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: underprint-${{ matrix.platform }}
+          path: dist/${{ matrix.platform }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: underprint-*
+          path: staged
+      - name: Create deterministic archives and checksums
+        run: |
+          mkdir release
+          for directory in staged/underprint-*; do
+            platform=${directory#staged/underprint-}
+            find "$directory" -exec touch -d '@0' {} +
+            tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+              -C "$directory" -cf - . | gzip -n > "release/underprint-${GITHUB_REF_NAME}-${platform}.tar.gz"
+          done
+          cd release
+          sha256sum ./*.tar.gz > SHA256SUMS
+      - uses: anchore/sbom-action@v0.24.0
+        with:
+          path: staged
+          format: spdx-json
+          output-file: release/underprint-${{ github.ref_name }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/attest@v4
+        with:
+          subject-checksums: release/SHA256SUMS
+      - uses: actions/attest@v4
+        with:
+          subject-path: release/*.tar.gz
+          sbom-path: release/underprint-${{ github.ref_name }}.spdx.json
+      - name: Publish immutable-tag release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes

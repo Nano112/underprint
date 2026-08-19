@@ -1,0 +1,24 @@
+{
+  "artifacts": [
+    {
+      "name": "encoder_Q.onnx",
+      "sha256": "19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d"
+    },
+    {
+      "name": "decoder_Q.onnx",
+      "sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"
+    }
+  ],
+  "generator": {
+    "command": "cargo run -p underprint-cli --example generate-golden",
+    "underprint_version": "0.1.0"
+  },
+  "input_sha256": "21417c9c73f6f4785989dd9ee5eadffcc5c7fc559ae62bd1df31f8d63b04dbd1",
+  "output_sha256": "09bcbc25adbc74774bfec127890f8ae85cf3ced9cbd259e9647f60f6123cfd0d",
+  "payload": "1011011110011000111111000000011111011111011100000110110110111",
+  "production_user_data": false,
+  "profile": "trustmark-q-bch5@1",
+  "schema": "underprint.golden-vector/v1",
+  "selected_strength": 0.6,
+  "synthetic": true
+}

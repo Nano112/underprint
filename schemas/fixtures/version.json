@@ -1,0 +1,34 @@
+{
+  "name": "underprint",
+  "build": {
+    "schema": "underprint.build/v1",
+    "version": "0.1.0",
+    "abi_version": 1,
+    "capabilities_schema": "underprint.capabilities/v1",
+    "detection_schema": "underprint.detection/v1",
+    "embedding_schema": "underprint.embedding/v1",
+    "error_schema": "underprint.error/v1"
+  },
+  "profiles": [
+    {
+      "id": "trustmark-q-bch5@1",
+      "algorithm": "trustmark",
+      "version": 1,
+      "payload_codec": "binary-bch5",
+      "payload_bits": 61,
+      "capabilities": ["embed", "detect"],
+      "media_types": ["image/png", "image/jpeg", "image/webp"],
+      "runtime": "onnxruntime-cpu",
+      "artifacts": [
+        {
+          "name": "encoder_Q.onnx",
+          "sha256": "19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d"
+        },
+        {
+          "name": "decoder_Q.onnx",
+          "sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"
+        }
+      ]
+    }
+  ]
+}

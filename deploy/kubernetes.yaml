@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: underprint
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: underprint }
+  template:
+    metadata:
+      labels: { app: underprint }
+    spec:
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: underprint
+          image: ghcr.io/nano112/underprint:REPLACE_WITH_DIGEST
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: UNDERPRINT_BIND, value: "0.0.0.0:8080" }
+            - { name: UNDERPRINT_MODELS_DIR, value: /models }
+            - { name: UNDERPRINT_MAX_CONCURRENCY, value: "2" }
+            - { name: UNDERPRINT_REQUESTS_PER_SECOND, value: "10" }
+            - { name: UNDERPRINT_REQUEST_TIMEOUT_SECONDS, value: "30" }
+            - name: UNDERPRINT_API_TOKEN
+              valueFrom:
+                secretKeyRef: { name: underprint, key: api-token, optional: false }
+          volumeMounts:
+            - { name: models, mountPath: /models, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+          startupProbe:
+            httpGet: { path: /health/ready, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            requests: { cpu: "500m", memory: 256Mi }
+            limits: { cpu: "2", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+      volumes:
+        - name: models
+          persistentVolumeClaim: { claimName: underprint-models }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: underprint
+spec:
+  selector: { app: underprint }
+  ports:
+    - { name: http, port: 8080, targetPort: http }

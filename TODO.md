@@ -5,6 +5,10 @@ requirements live in [`docs/requirements.md`](docs/requirements.md); this file
 tracks delivery. A checked item means its implementation and stated validation
 exist in this repository, not merely that code was started.
 
+Production, corpus, redistribution, hardware, and legal dependencies that
+cannot be satisfied by source changes are listed in
+[`docs/roadmap-blockers.md`](docs/roadmap-blockers.md).
+
 ## Release definitions
 
 - **Compatibility build:** the smallest native CPU build required by Schematio.
@@ -66,7 +70,7 @@ shared by Rust, the CLI, C callers, and PHP.
 - [x] Verify Schematio worker output with Underprint.
 - [x] Exercise the compiled shared library through both C and PHP.
 - [x] Verify stripped compatibility artifacts and exported-symbol allowlisting.
-- [ ] Commit synthetic golden vectors and their generation/verification
+- [x] Commit synthetic golden vectors and their generation/verification
   procedure without production user data.
 - [x] Record reproducible cold/warm latency, peak RSS, output size, and quality
   baselines on named reference hardware.
@@ -78,22 +82,22 @@ Schematio with an independent rollback path.
 
 ### Contracts and CLI completion
 
-- [ ] Freeze detection, embedding, capabilities, and error JSON schemas for the
+- [x] Freeze detection, embedding, capabilities, and error JSON schemas for the
   compatibility release.
-- [ ] Document ABI thread-safety, blocking calls, context sharing, model load,
+- [x] Document ABI thread-safety, blocking calls, context sharing, model load,
   buffer lifetime, and shutdown behavior.
-- [ ] Add ABI/build/schema/profile/artifact introspection to every public
+- [x] Add ABI/build/schema/profile/artifact introspection to every public
   surface.
 - [ ] Complete stable exit-code coverage: not present, invalid arguments,
   invalid input, unavailable, untrusted evidence, limits, partial batch, and
   internal failure.
-- [ ] Add explicit stdin/stdout support and refuse binary output to a terminal
+- [x] Add explicit stdin/stdout support and refuse binary output to a terminal
   without `--force`.
-- [ ] Add atomic output writes, overwrite protection, and an explicit atomic
+- [x] Add atomic output writes, overwrite protection, and an explicit atomic
   in-place mode.
-- [ ] Guarantee ANSI-free output for JSON, redirected streams, `NO_COLOR`,
+- [x] Guarantee ANSI-free output for JSON, redirected streams, `NO_COLOR`,
   `TERM=dumb`, and CI.
-- [ ] Add CLI JSON-schema fixtures and snapshot/contract tests.
+- [x] Add CLI JSON-schema fixtures and snapshot/contract tests.
 
 ### HTTP compatibility service
 
@@ -102,29 +106,29 @@ Schematio with an independent rollback path.
 - [ ] Implement `GET /health/live`, `GET /health/ready`,
   `GET /v1/algorithms`, `POST /v1/embeddings`, `POST /v1/detections`, and
   `POST /v1/verifications`.
-- [ ] Publish and contract-test an OpenAPI 3.1 document.
-- [ ] Stream and bound uploads without accepting remote URLs by default.
+- [x] Publish and contract-test an OpenAPI 3.1 document.
+- [x] Stream and bound uploads without accepting remote URLs by default.
 - [ ] Add request IDs, safe structured errors, authentication hooks,
   idempotency keys for writes, and rate/concurrency limits.
-- [ ] Make readiness depend on required artifact digests and successfully
+- [x] Make readiness depend on required artifact digests and successfully
   initialized profiles.
-- [ ] Document media retention and ensure uploads are not retained by default.
+- [x] Document media retention and ensure uploads are not retained by default.
 - [ ] Add graceful shutdown, bounded queues, deadlines, cancellation, and
   backpressure.
 
 ### Container and operations
 
-- [ ] Build a minimal non-root container with no compiler, Python runtime,
+- [x] Build a minimal non-root container with no compiler, Python runtime,
   model downloader, or writable application directory.
-- [ ] Decide whether model artifacts are separately mounted, attached to a
+- [x] Decide whether model artifacts are separately mounted, attached to a
   release, or included in an image after redistribution review.
-- [ ] Add structured logging and metrics for duration, outcome, profile,
+- [x] Add structured logging and metrics for duration, outcome, profile,
   strength, queue time, resource rejection, and model readiness.
-- [ ] Ensure logs exclude media bytes, private payloads/metadata, credentials,
+- [x] Ensure logs exclude media bytes, private payloads/metadata, credentials,
   keys, filesystem paths, and stack traces by default.
-- [ ] Add health/readiness probes, resource recommendations, deployment
+- [x] Add health/readiness probes, resource recommendations, deployment
   examples, and rollback documentation.
-- [ ] Test CPU/memory limits and concurrent overload behavior in the container.
+- [x] Test CPU/memory limits and concurrent overload behavior in the container.
 
 ### Compatibility, security, and migration
 
@@ -140,7 +144,7 @@ Schematio with an independent rollback path.
   oversized-output tests.
 - [ ] Add long-running PHP FFI memory/handle/concurrency soak tests, including
   Laravel queue and Octane lifecycle cases.
-- [ ] Add at least one non-PHP foreign-language binding and ownership test.
+- [x] Add at least one non-PHP foreign-language binding and ownership test.
 - [ ] Run shadow detection in Schematio and compare every result without
   changing writes or user-visible conclusions.
 - [ ] Define parity tolerances, alerting, rollout stages, feature flags, and an
@@ -315,27 +319,27 @@ Goal: make the full platform easy to integrate, inspect, package, and maintain.
   approved acquisition mechanism.
 - [ ] Audit every source dependency, native runtime, model, test corpus, and
   bundled asset; keep `NOTICE` and the licence inventory current.
-- [ ] Pin dependencies and artifacts, run dependency/vulnerability/licence
+- [x] Pin dependencies and artifacts, run dependency/vulnerability/licence
   checks, and define supported upgrade windows.
 - [ ] Build and test Linux x86-64/ARM64, macOS x86-64/ARM64, and Windows x86-64
   CLI and shared-library artifacts.
 - [ ] Produce deterministic archives with checksums, SBOMs, signed release
   manifests, and build provenance attestations.
-- [ ] Enforce exported-symbol allowlists and ABI compatibility checks in CI.
-- [ ] Add sanitizers and platform-appropriate memory/error tooling to CI.
-- [ ] Establish supported-version, vulnerability disclosure, release,
+- [x] Enforce exported-symbol allowlists and ABI compatibility checks in CI.
+- [x] Add sanitizers and platform-appropriate memory/error tooling to CI.
+- [x] Establish supported-version, vulnerability disclosure, release,
   deprecation, and historical-profile retention policies.
 - [ ] Publish benchmark and robustness reports beside each production profile,
   with hardware, flags, corpus, warm/cold state, concurrency, and percentiles.
 
 ## Open decisions
 
-- [ ] Choose the portable evidence envelope: COSE, DSSE, or JWS.
+- [x] Choose the portable evidence envelope: COSE, DSSE, or JWS.
 - [ ] Choose the first additional invisible-watermark family.
 - [ ] Choose the first GPU execution provider(s).
-- [ ] Choose initial batch persistence and object storage.
-- [ ] Choose service authentication defaults.
-- [ ] Decide whether PHP `auto` transport may select FFI only for explicitly
+- [x] Choose initial batch persistence and object storage.
+- [x] Choose service authentication defaults.
+- [x] Decide whether PHP `auto` transport may select FFI only for explicitly
   configured queue/Octane workers.
-- [ ] Define the compatibility and retention promise for old models, profiles,
+- [x] Define the compatibility and retention promise for old models, profiles,
   schemas, and evidence.

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nano112/underprint/schemas/detection-v1.schema.json",
+  "title": "Underprint detection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "build", "input", "detections", "partial", "warnings", "duration_ms"],
+  "properties": {
+    "schema": { "const": "underprint.detection/v1" },
+    "build": { "$ref": "common-v1.schema.json#/$defs/build" },
+    "input": { "$ref": "common-v1.schema.json#/$defs/input" },
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "algorithm", "profile", "payload_codec", "payload", "artifacts"],
+        "properties": {
+          "state": { "enum": ["present", "not_present"] },
+          "algorithm": { "type": "string", "minLength": 1 },
+          "profile": { "type": "string", "minLength": 1 },
+          "payload_codec": { "type": "string", "minLength": 1 },
+          "payload": { "type": ["string", "null"] },
+          "artifacts": { "type": "array", "items": { "$ref": "common-v1.schema.json#/$defs/artifact" } }
+        }
+      }
+    },
+    "partial": { "type": "boolean" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "duration_ms": { "type": "integer", "minimum": 0 }
+  }
+}

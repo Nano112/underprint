@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nano112/underprint/schemas/common-v1.schema.json",
+  "title": "Underprint v1 common definitions",
+  "$defs": {
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "version", "abi_version", "capabilities_schema", "detection_schema", "embedding_schema", "error_schema"],
+      "properties": {
+        "schema": { "const": "underprint.build/v1" },
+        "version": { "type": "string", "minLength": 1 },
+        "abi_version": { "const": 1 },
+        "capabilities_schema": { "const": "underprint.capabilities/v1" },
+        "detection_schema": { "const": "underprint.detection/v1" },
+        "embedding_schema": { "const": "underprint.embedding/v1" },
+        "error_schema": { "const": "underprint.error/v1" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "algorithm", "version", "payload_codec", "payload_bits", "capabilities", "media_types", "runtime", "artifacts"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*@[1-9][0-9]*$" },
+        "algorithm": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 1 },
+        "payload_codec": { "type": "string", "minLength": 1 },
+        "payload_bits": { "type": "integer", "minimum": 1 },
+        "capabilities": {
+          "type": "array",
+          "items": { "enum": ["embed", "detect"] },
+          "uniqueItems": true
+        },
+        "media_types": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9.+-]+/[a-zA-Z0-9.+-]+$" },
+          "uniqueItems": true
+        },
+        "runtime": { "type": "string", "minLength": 1 },
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "media_type", "bytes", "width", "height"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "media_type": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "width": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 4096 }
+      }
+    }
+  }
+}

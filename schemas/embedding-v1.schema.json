@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nano112/underprint/schemas/embedding-v1.schema.json",
+  "title": "Underprint embedding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "build", "input", "output_sha256", "output_bytes", "algorithm", "profile", "payload_codec", "payload", "selected_strength", "self_verified", "artifacts", "duration_ms"],
+  "properties": {
+    "schema": { "const": "underprint.embedding/v1" },
+    "build": { "$ref": "common-v1.schema.json#/$defs/build" },
+    "input": { "$ref": "common-v1.schema.json#/$defs/input" },
+    "output_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "output_bytes": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+    "algorithm": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "minLength": 1 },
+    "payload_codec": { "type": "string", "minLength": 1 },
+    "payload": { "type": "string", "minLength": 1 },
+    "selected_strength": { "type": "number", "exclusiveMinimum": 0 },
+    "self_verified": { "const": true },
+    "artifacts": { "type": "array", "items": { "$ref": "common-v1.schema.json#/$defs/artifact" } },
+    "duration_ms": { "type": "integer", "minimum": 0 }
+  }
+}

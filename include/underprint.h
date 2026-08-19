@@ -28,8 +28,11 @@ typedef enum {
 } up_status;
 
 uint32_t up_abi_version(void);
+/* Static UTF-8 view valid for the lifetime of the loaded library. */
 up_bytes_view up_version(void);
 
+/* Context creation verifies configured artifacts but model sessions load lazily.
+ * Contexts may be shared across threads; operations are blocking. */
 up_status up_context_create(up_bytes_view config_json, up_context **out);
 up_status up_context_capabilities(up_context *context, up_result **out);
 
@@ -60,7 +63,8 @@ up_status up_verify(
 up_bytes_view up_result_json(up_result *result);
 up_bytes_view up_result_output(up_result *result);
 
-/* Free functions tolerate NULL, invalid, stale, and repeated handles. */
+/* Stop new calls and wait for in-flight calls before freeing a shared context.
+ * Free functions tolerate NULL, invalid, stale, and repeated handles. */
 void up_result_free(up_result *result);
 void up_context_free(up_context *context);
 

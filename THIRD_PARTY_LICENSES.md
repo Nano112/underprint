@@ -12,4 +12,5 @@ the notices belonging to their dependencies and model artifacts.
 
 Release automation must generate a complete dependency licence inventory and
 SBOM. This document records the high-level obligations; it is not a substitute
-for the generated inventory.
+for the generated inventory. `deny.toml` is the enforced source, licence, and
+RustSec policy; `cargo deny check` must pass before a release.

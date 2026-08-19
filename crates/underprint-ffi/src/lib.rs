@@ -12,10 +12,13 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use underprint_core::{EmbedOptions, Error, ErrorKind, TRUSTMARK_Q_BCH5_PROFILE, Underprint};
+use underprint_core::{
+    ABI_VERSION, CapabilitiesReport, EmbedOptions, Error, ErrorKind, RuntimeConfiguration,
+    TRUSTMARK_Q_BCH5_PROFILE, Underprint,
+};
 use underprint_trustmark::{TrustmarkEngine, TrustmarkOptions, descriptor};
 
-pub const UP_ABI_VERSION: u32 = 1;
+pub const UP_ABI_VERSION: u32 = ABI_VERSION;
 
 #[repr(C)]
 pub struct up_context {
@@ -57,7 +60,7 @@ pub enum up_status {
 struct ContextEntry {
     application: Option<Underprint>,
     unavailable_reason: Option<String>,
-    runtime: RuntimeView,
+    runtime: RuntimeConfiguration,
 }
 
 struct ResultEntry {
@@ -97,33 +100,12 @@ struct EmbedFfiOptions {
     strength_step: Option<f32>,
 }
 
-#[derive(Serialize)]
-struct Capabilities<'a> {
-    schema: &'static str,
-    version: &'static str,
-    abi_version: u32,
-    ready: bool,
-    unavailable_reason: Option<&'a str>,
-    runtime: RuntimeView,
-    profiles: Vec<underprint_core::ProfileDescriptor>,
-}
-
-#[derive(Debug, Clone, Copy, Serialize)]
-struct RuntimeView {
-    intra_threads: usize,
-    cpu_arena: bool,
-    memory_pattern: bool,
-    prepacking: bool,
-}
-
-impl From<TrustmarkOptions> for RuntimeView {
-    fn from(options: TrustmarkOptions) -> Self {
-        Self {
-            intra_threads: options.intra_threads,
-            cpu_arena: options.cpu_arena,
-            memory_pattern: options.memory_pattern,
-            prepacking: options.prepacking,
-        }
+fn runtime_configuration(options: TrustmarkOptions) -> RuntimeConfiguration {
+    RuntimeConfiguration {
+        intra_threads: options.intra_threads,
+        cpu_arena: options.cpu_arena,
+        memory_pattern: options.memory_pattern,
+        prepacking: options.prepacking,
     }
 }
 
@@ -163,15 +145,12 @@ pub extern "C" fn up_context_capabilities(
     ffi_guard(|| {
         initialize_out(out)?;
         let context = get_context(context)?;
-        let document = Capabilities {
-            schema: underprint_core::CAPABILITIES_SCHEMA,
-            version: underprint_core::VERSION,
-            abi_version: UP_ABI_VERSION,
-            ready: context.application.is_some(),
-            unavailable_reason: context.unavailable_reason.as_deref(),
-            runtime: context.runtime,
-            profiles: vec![descriptor()],
-        };
+        let document = CapabilitiesReport::new(
+            context.application.is_some(),
+            context.unavailable_reason.clone(),
+            context.runtime,
+            vec![descriptor()],
+        );
         put_result(out, &document, Vec::new())?;
         Ok(up_status::UP_OK)
     })
@@ -353,7 +332,7 @@ fn context_create(
             Arc::new(ContextEntry {
                 application,
                 unavailable_reason,
-                runtime: options.into(),
+                runtime: runtime_configuration(options),
             }),
         );
     unsafe { out.write(handle) };
@@ -488,6 +467,7 @@ fn status_for_error(kind: ErrorKind) -> up_status {
         ErrorKind::InvalidArgument => up_status::UP_INVALID_ARGUMENT,
         ErrorKind::InvalidInput => up_status::UP_INVALID_INPUT,
         ErrorKind::Unavailable => up_status::UP_UNAVAILABLE,
+        ErrorKind::UntrustedEvidence => up_status::UP_UNTRUSTED_EVIDENCE,
         ErrorKind::ResourceLimit => up_status::UP_RESOURCE_LIMIT,
         ErrorKind::Algorithm | ErrorKind::Internal => up_status::UP_INTERNAL,
     }
@@ -535,7 +515,7 @@ mod tests {
         let json = up_result_json(result);
         let document: serde_json::Value =
             serde_json::from_slice(unsafe { slice::from_raw_parts(json.data, json.len) }).unwrap();
-        assert_eq!(document["abi_version"], 1);
+        assert_eq!(document["build"]["abi_version"], 1);
         assert_eq!(document["ready"], false);
         assert_eq!(document["runtime"]["cpu_arena"], false);
         assert_eq!(document["runtime"]["memory_pattern"], true);
@@ -594,5 +574,37 @@ mod tests {
         assert!(!result.is_null());
         up_result_free(result);
         up_context_free(context);
+    }
+
+    #[test]
+    fn arbitrary_handles_and_json_never_cross_or_dereference_foreign_memory() {
+        let mut state = 0x6a09_e667_f3bc_c909_u64;
+        for length in 0..2_000_usize {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let random_handle = (state as usize | 1) as *mut up_context;
+            let mut result = ptr::null_mut();
+            assert_eq!(
+                up_context_capabilities(random_handle, &mut result),
+                up_status::UP_INVALID_ARGUMENT
+            );
+            assert!(result.is_null());
+            assert_eq!(up_result_json(random_handle.cast()).len, 0);
+            assert_eq!(up_result_output(random_handle.cast()).len, 0);
+            up_context_free(random_handle);
+            up_result_free(random_handle.cast());
+
+            let bytes: Vec<u8> = (0..length.min(64))
+                .map(|index| state.wrapping_shr((index % 8 * 8) as u32) as u8)
+                .collect();
+            let mut context = ptr::null_mut();
+            let status = up_context_create(view(&bytes), &mut context);
+            assert!(matches!(
+                status,
+                up_status::UP_OK | up_status::UP_INVALID_ARGUMENT
+            ));
+            up_context_free(context);
+        }
     }
 }

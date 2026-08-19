@@ -1,0 +1,169 @@
+openapi: 3.1.0
+info:
+  title: Underprint HTTP API
+  version: 0.1.0
+  description: >-
+    Bounded native watermark embedding and detection. Uploaded media is
+    processed in memory and is not retained. Detection is a technical signal,
+    not a conclusion about authorship or authenticity.
+servers:
+  - url: http://127.0.0.1:8080
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      summary: Legacy aggregate health
+      responses:
+        "200": { $ref: "#/components/responses/Health" }
+        "503": { $ref: "#/components/responses/Health" }
+  /health/live:
+    get:
+      security: []
+      summary: Process liveness independent of model readiness
+      responses:
+        "200": { $ref: "#/components/responses/Health" }
+  /health/ready:
+    get:
+      security: []
+      summary: Artifact and profile readiness
+      responses:
+        "200": { $ref: "#/components/responses/Capabilities" }
+        "503": { $ref: "#/components/responses/Capabilities" }
+  /v1/algorithms:
+    get:
+      summary: Inspect compiled profiles, artifacts, schemas, and runtime policy
+      responses:
+        "200": { $ref: "#/components/responses/Capabilities" }
+        "401": { $ref: "#/components/responses/Error" }
+  /v1/embeddings:
+    post:
+      summary: Embed and exactly self-verify a payload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/EmbeddingRequest"
+      responses:
+        "200":
+          description: Final self-verified RGB PNG
+          headers:
+            X-Underprint-Report:
+              description: Base64url, unpadded underprint.embedding/v1 JSON
+              schema: { type: string }
+          content:
+            image/png:
+              schema: { type: string, contentEncoding: binary }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /v1/detections:
+    post:
+      summary: Detect one immutable profile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DetectionRequest"
+      responses:
+        "200":
+          description: Detection report; inspect detection state for presence
+          content:
+            application/json:
+              schema:
+                $ref: "/schemas/detection-v1.schema.json"
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /v1/verifications:
+    post:
+      summary: Verify portable evidence when that edition is compiled
+      responses:
+        "503": { $ref: "#/components/responses/Error" }
+  /embed:
+    post:
+      deprecated: true
+      summary: Schematio compatibility alias for /v1/embeddings
+      requestBody:
+        $ref: "#/components/requestBodies/Embedding"
+      responses:
+        "200": { description: Final self-verified RGB PNG }
+  /decode:
+    post:
+      deprecated: true
+      summary: Schematio compatibility alias for /v1/detections
+      requestBody:
+        $ref: "#/components/requestBodies/Detection"
+      responses:
+        "200": { $ref: "#/components/responses/Detection" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Configured with UNDERPRINT_API_TOKEN and required whenever the server
+        binds to a non-loopback address.
+  schemas:
+    EmbeddingRequest:
+      type: object
+      additionalProperties: false
+      required: [image, payload]
+      properties:
+        image: { type: string, contentEncoding: binary }
+        payload: { type: string, pattern: "^[01]{61}$" }
+        profile: { type: string, default: "trustmark-q-bch5@1" }
+    DetectionRequest:
+      type: object
+      additionalProperties: false
+      required: [image]
+      properties:
+        image: { type: string, contentEncoding: binary }
+        profile: { type: string, default: "trustmark-q-bch5@1" }
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string }
+  requestBodies:
+    Embedding:
+      required: true
+      content:
+        multipart/form-data:
+          schema: { $ref: "#/components/schemas/EmbeddingRequest" }
+    Detection:
+      required: true
+      content:
+        multipart/form-data:
+          schema: { $ref: "#/components/schemas/DetectionRequest" }
+  responses:
+    Health:
+      description: Health state
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Health" }
+    Capabilities:
+      description: Versioned capabilities and readiness
+      content:
+        application/json:
+          schema: { $ref: "/schemas/capabilities-v1.schema.json" }
+    Detection:
+      description: Versioned detection report
+      content:
+        application/json:
+          schema: { $ref: "/schemas/detection-v1.schema.json" }
+    Error:
+      description: Safe versioned error; X-Request-Id is returned separately
+      content:
+        application/json:
+          schema: { $ref: "/schemas/error-v1.schema.json" }

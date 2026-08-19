@@ -1,0 +1,24 @@
+services:
+  underprint:
+    build:
+      context: ..
+    read_only: true
+    init: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      UNDERPRINT_BIND: 0.0.0.0:8080
+      UNDERPRINT_MODELS_DIR: /models
+      UNDERPRINT_API_TOKEN: ${UNDERPRINT_API_TOKEN:?set UNDERPRINT_API_TOKEN}
+      UNDERPRINT_MAX_CONCURRENCY: 2
+      UNDERPRINT_REQUESTS_PER_SECOND: 10
+    volumes:
+      - ../models:/models:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
