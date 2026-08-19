@@ -111,8 +111,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: taiki-e/install-action@cargo-fuzz
-      - run: cargo fuzz build
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - run: cargo +nightly fuzz build
         working-directory: fuzz
 
   sanitizer:
@@ -126,7 +128,7 @@ jobs:
         env:
           RUSTFLAGS: -Zsanitizer=address
           RUSTDOCFLAGS: -Zsanitizer=address
-        run: cargo test -p underprint --target x86_64-unknown-linux-gnu
+        run: cargo +nightly test -p underprint --target x86_64-unknown-linux-gnu
 
   container:
     runs-on: ubuntu-24.04-arm
