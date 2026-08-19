@@ -1,0 +1,16 @@
+{
+  "name": "underprint/underprint-php",
+  "description": "PHP FFI binding for the native Underprint watermark library",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.2",
+    "ext-ffi": "*",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Underprint\\": "src/"
+    }
+  }
+}

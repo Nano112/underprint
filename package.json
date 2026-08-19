@@ -1,0 +1,12 @@
+{
+  "name": "underprint-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render:figures": "node figures/render.mjs"
+  },
+  "devDependencies": {
+    "@kineglyph/core": "0.3.0",
+    "@kineglyph/svg": "0.3.0"
+  }
+}

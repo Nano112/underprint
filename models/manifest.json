@@ -1,0 +1,18 @@
+{
+  "schema": "underprint.models/v1",
+  "profile": "trustmark-q-bch5@1",
+  "source": "https://cai-watermark.adobe.net/watermarking/trustmark-models",
+  "redistribution": "separate-review-required",
+  "artifacts": [
+    {
+      "name": "encoder_Q.onnx",
+      "bytes": 17312208,
+      "sha256": "19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d"
+    },
+    {
+      "name": "decoder_Q.onnx",
+      "bytes": 47401222,
+      "sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"
+    }
+  ]
+}

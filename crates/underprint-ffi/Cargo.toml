@@ -1,0 +1,19 @@
+[package]
+name = "underprint-ffi"
+description = "Stable C ABI for Underprint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "underprint"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+underprint-core = { package = "underprint", path = "../underprint", version = "0.1.0" }
+underprint-trustmark.workspace = true
+serde.workspace = true
+serde_json.workspace = true

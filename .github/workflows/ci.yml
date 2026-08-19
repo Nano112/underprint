@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --profile minimal-release -p underprint-cli -p underprint-ffi
+      - run: ./scripts/check-abi-sync.sh
+      - run: ./scripts/test-c-abi.sh
+      - name: Check shared-library exports
+        run: |
+          find target/minimal-release -maxdepth 1 -type f \
+            \( -name 'libunderprint.so' -o -name 'libunderprint.dylib' \) \
+            -exec ./scripts/check-exports.sh {} \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: underprint-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: error
+          path: |
+            target/minimal-release/underprint
+            target/minimal-release/underprint.exe
+            target/minimal-release/libunderprint.so
+            target/minimal-release/libunderprint.dylib
+            target/minimal-release/underprint.dll
+            include/underprint.h
+            models/manifest.json
+            LICENSE
+            NOTICE
+            THIRD_PARTY_LICENSES.md
+
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: ffi
+      - run: composer validate --strict
+        working-directory: bindings/php
+      - run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
+        working-directory: bindings/php
+      - run: php -l benchmarks/ffi.php
+
+  figures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run render:figures
+      - name: Check committed figures
+        run: git diff --exit-code -- docs/assets/readme

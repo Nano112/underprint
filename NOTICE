@@ -1,0 +1,15 @@
+Underprint
+Copyright (c) 2026 Underprint contributors
+
+Underprint vendors and modifies Adobe TrustMark's native Rust implementation.
+The upstream TrustMark code is Copyright Adobe and licensed under the MIT
+License. Underprint does not claim ownership of Adobe's code, model
+architecture, or model weights. The preserved licence and provenance record are
+in vendor/trustmark.
+
+ONNX Runtime is Copyright Microsoft Corporation and licensed under the MIT
+License. Binary distributions that include ONNX Runtime must include its
+license and ThirdPartyNotices file.
+
+Model files are distributed separately from this source repository. Their
+origin, digest, and redistribution status are recorded in models/manifest.json.

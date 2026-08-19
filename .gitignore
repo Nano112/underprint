@@ -1,0 +1,11 @@
+**/target/
+/models/*.onnx
+/bindings/php/vendor/
+/node_modules/
+/.idea/
+/.vscode/
+*.dylib
+*.dll
+*.so
+*.swp
+.DS_Store

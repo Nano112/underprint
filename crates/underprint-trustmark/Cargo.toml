@@ -1,0 +1,19 @@
+[package]
+name = "underprint-trustmark"
+description = "Native TrustMark engine for Underprint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-ort"]
+native-ort = []
+
+[dependencies]
+underprint.workspace = true
+image.workspace = true
+sha2.workspace = true
+trustmark.workspace = true
