@@ -92,19 +92,44 @@ paths:
   /embed:
     post:
       deprecated: true
-      summary: Schematio compatibility alias for /v1/embeddings
+      summary: Schematio-compatible embedding endpoint
       requestBody:
-        $ref: "#/components/requestBodies/Embedding"
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [image, token]
+              properties:
+                image: { type: string, contentEncoding: binary }
+                token: { type: string, pattern: "^[01]{61}$" }
       responses:
-        "200": { description: Final self-verified RGB PNG }
+        "200":
+          description: Final self-verified RGB PNG with Schematio identity headers
+          headers:
+            X-Watermark-Token: { schema: { type: string, pattern: "^[01]{61}$" } }
+            X-Watermark-Model: { schema: { const: "trustmark-q-bch5" } }
+            X-Watermark-Strength: { schema: { type: number } }
   /decode:
     post:
       deprecated: true
-      summary: Schematio compatibility alias for /v1/detections
+      summary: Schematio-compatible detection endpoint
       requestBody:
         $ref: "#/components/requestBodies/Detection"
       responses:
-        "200": { $ref: "#/components/responses/Detection" }
+        "200":
+          description: Schematio detection result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [present, model]
+                properties:
+                  present: { type: boolean }
+                  token: { type: string, pattern: "^[01]{61}$" }
+                  model: { const: "trustmark-q-bch5" }
 components:
   securitySchemes:
     bearerAuth:

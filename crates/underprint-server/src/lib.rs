@@ -29,8 +29,8 @@ use tower_http::{
     trace::TraceLayer,
 };
 use underprint::{
-    CapabilitiesReport, ERROR_SCHEMA, EmbedOptions, Error, ErrorKind, RuntimeConfiguration,
-    TRUSTMARK_Q_BCH5_PROFILE, Underprint,
+    CapabilitiesReport, DetectionReport, DetectionState, ERROR_SCHEMA, EmbedOptions,
+    EmbeddingReport, Error, ErrorKind, RuntimeConfiguration, TRUSTMARK_Q_BCH5_PROFILE, Underprint,
 };
 
 pub const MAX_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
@@ -41,6 +41,7 @@ const CAPABILITIES_SCHEMA_JSON: &str = include_str!("../../../schemas/capabiliti
 const DETECTION_SCHEMA_JSON: &str = include_str!("../../../schemas/detection-v1.schema.json");
 const EMBEDDING_SCHEMA_JSON: &str = include_str!("../../../schemas/embedding-v1.schema.json");
 const ERROR_SCHEMA_JSON: &str = include_str!("../../../schemas/error-v1.schema.json");
+const SCHEMATIO_MODEL: &str = "trustmark-q-bch5";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -159,11 +160,11 @@ pub fn router(state: AppState, request_timeout: Duration) -> Router {
         .route("/schemas/detection-v1.schema.json", get(detection_schema))
         .route("/schemas/embedding-v1.schema.json", get(embedding_schema))
         .route("/schemas/error-v1.schema.json", get(error_schema))
-        .route("/embed", post(embed))
-        .route("/decode", post(detect))
+        .route("/embed", post(embed_schematio))
+        .route("/decode", post(detect_schematio))
         .route("/v1/algorithms", get(algorithms))
-        .route("/v1/embeddings", post(embed))
-        .route("/v1/detections", post(detect))
+        .route("/v1/embeddings", post(embed_v1))
+        .route("/v1/detections", post(detect_v1))
         .route("/v1/verifications", post(verify))
         .layer(DefaultBodyLimit::max(MAX_MULTIPART_BYTES))
         .layer(middleware)
@@ -207,25 +208,83 @@ async fn algorithms(State(state): State<AppState>, headers: HeaderMap) -> ApiRes
     Ok(Json(state.capabilities).into_response())
 }
 
-async fn embed(
+async fn embed_v1(
     State(state): State<AppState>,
     headers: HeaderMap,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult {
-    authorize(&state, &headers)?;
+    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let report = run_embedding(&state, &headers, fields, "payload").await?;
+    embedding_response(report, false)
+}
+
+async fn embed_schematio(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    multipart: Result<Multipart, MultipartRejection>,
+) -> ApiResult {
+    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let report = run_embedding(&state, &headers, fields, "token").await?;
+    embedding_response(report, true)
+}
+
+async fn detect_v1(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    multipart: Result<Multipart, MultipartRejection>,
+) -> ApiResult {
+    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let report = run_detection(&state, &headers, fields).await?;
+    Ok(Json(report).into_response())
+}
+
+#[derive(Serialize)]
+struct SchematioDetection<'a> {
+    present: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<&'a str>,
+    model: &'static str,
+}
+
+async fn detect_schematio(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    multipart: Result<Multipart, MultipartRejection>,
+) -> ApiResult {
+    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let report = run_detection(&state, &headers, fields).await?;
+    let payload = report
+        .detections
+        .iter()
+        .find(|detection| detection.state == DetectionState::Present)
+        .and_then(|detection| detection.payload.as_deref());
+    Ok(Json(SchematioDetection {
+        present: payload.is_some(),
+        token: payload,
+        model: SCHEMATIO_MODEL,
+    })
+    .into_response())
+}
+
+async fn run_embedding(
+    state: &AppState,
+    headers: &HeaderMap,
+    fields: HashMap<String, Vec<u8>>,
+    payload_field: &str,
+) -> Result<EmbeddingReport, ApiError> {
+    authorize(state, headers)?;
     let started = Instant::now();
     state.metrics.requests.fetch_add(1, Ordering::Relaxed);
     state
         .metrics
         .embedding_requests
         .fetch_add(1, Ordering::Relaxed);
-    let permit = admit(&state)?;
-    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let permit = admit(state)?;
     let image = required_field(&fields, "image")?.clone();
-    let payload = required_text(&fields, "payload")?;
+    let payload = required_text(&fields, payload_field)?;
     let profile =
         optional_text(&fields, "profile").unwrap_or_else(|| TRUSTMARK_Q_BCH5_PROFILE.to_owned());
-    let application = application(&state)?;
+    let application = application(state)?;
     let result = tokio::task::spawn_blocking(move || {
         application.embed(
             &image,
@@ -241,7 +300,7 @@ async fn embed(
     drop(permit);
     match result {
         Ok(report) => {
-            record(&state, started, true);
+            record(state, started, true);
             state.metrics.embedding_strength_tenths.fetch_add(
                 (report.selected_strength * 10.0).round() as u64,
                 Ordering::Relaxed,
@@ -250,53 +309,73 @@ async fn embed(
                 .metrics
                 .embedding_strength_observations
                 .fetch_add(1, Ordering::Relaxed);
-            let report_json = serde_json::to_vec(&report)
-                .map_err(|_| ApiError::internal("failed to serialize embedding report"))?;
-            let mut response =
-                ([(header::CONTENT_TYPE, "image/png")], report.output).into_response();
-            response.headers_mut().insert(
-                "x-underprint-report",
-                HeaderValue::from_str(&URL_SAFE_NO_PAD.encode(report_json))
-                    .map_err(|_| ApiError::internal("embedding report header is invalid"))?,
-            );
-            Ok(response)
+            Ok(report)
         }
         Err(error) => {
-            record(&state, started, false);
+            record(state, started, false);
             Err(error.into())
         }
     }
 }
 
-async fn detect(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    multipart: Result<Multipart, MultipartRejection>,
-) -> ApiResult {
-    authorize(&state, &headers)?;
+fn embedding_response(report: EmbeddingReport, schematio: bool) -> ApiResult {
+    let report_json = serde_json::to_vec(&report)
+        .map_err(|_| ApiError::internal("failed to serialize embedding report"))?;
+    let token = report.payload.clone();
+    let strength = report.selected_strength.to_string();
+    let mut response = ([(header::CONTENT_TYPE, "image/png")], report.output).into_response();
+    response.headers_mut().insert(
+        "x-underprint-report",
+        HeaderValue::from_str(&URL_SAFE_NO_PAD.encode(report_json))
+            .map_err(|_| ApiError::internal("embedding report header is invalid"))?,
+    );
+    if schematio {
+        response.headers_mut().insert(
+            "x-watermark-token",
+            HeaderValue::from_str(&token)
+                .map_err(|_| ApiError::internal("watermark token header is invalid"))?,
+        );
+        response.headers_mut().insert(
+            "x-watermark-model",
+            HeaderValue::from_static(SCHEMATIO_MODEL),
+        );
+        response.headers_mut().insert(
+            "x-watermark-strength",
+            HeaderValue::from_str(&strength)
+                .map_err(|_| ApiError::internal("watermark strength header is invalid"))?,
+        );
+    }
+    Ok(response)
+}
+
+async fn run_detection(
+    state: &AppState,
+    headers: &HeaderMap,
+    fields: HashMap<String, Vec<u8>>,
+) -> Result<DetectionReport, ApiError> {
+    authorize(state, headers)?;
     let started = Instant::now();
     state.metrics.requests.fetch_add(1, Ordering::Relaxed);
     state
         .metrics
         .detection_requests
         .fetch_add(1, Ordering::Relaxed);
-    let permit = admit(&state)?;
-    let fields = parse_multipart(multipart.map_err(ApiError::from_multipart_rejection)?).await?;
+    let permit = admit(state)?;
     let image = required_field(&fields, "image")?.clone();
     let profile =
         optional_text(&fields, "profile").unwrap_or_else(|| TRUSTMARK_Q_BCH5_PROFILE.to_owned());
-    let application = application(&state)?;
+    let application = application(state)?;
     let result = tokio::task::spawn_blocking(move || application.detect(&image, &profile))
         .await
         .map_err(|_| ApiError::internal("detection worker failed"))?;
     drop(permit);
     match result {
         Ok(report) => {
-            record(&state, started, true);
-            Ok(Json(report).into_response())
+            record(state, started, true);
+            Ok(report)
         }
         Err(error) => {
-            record(&state, started, false);
+            record(state, started, false);
             Err(error.into())
         }
     }
@@ -471,7 +550,10 @@ async fn parse_multipart(mut multipart: Multipart) -> Result<HashMap<String, Vec
         let Some(name) = field.name().map(str::to_owned) else {
             continue;
         };
-        if !matches!(name.as_str(), "image" | "file" | "payload" | "profile") {
+        if !matches!(
+            name.as_str(),
+            "image" | "file" | "payload" | "profile" | "token"
+        ) {
             return Err(ApiError::invalid_argument("unexpected multipart field"));
         }
         let value = field.bytes().await.map_err(ApiError::from_multipart)?;
@@ -624,8 +706,16 @@ pub fn default_runtime() -> RuntimeConfiguration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
+    use image::DynamicImage;
     use tower::ServiceExt;
+    use underprint::{
+        ArtifactDescriptor, Capability, ImagePolicy, ProfileDescriptor, Result, WatermarkEngine,
+        serialize_png,
+    };
     use underprint_trustmark::descriptor;
 
     fn state() -> AppState {
@@ -635,6 +725,85 @@ mod tests {
             default_runtime(),
             vec![descriptor()],
         ))
+    }
+
+    struct FakeEngine {
+        descriptor: ProfileDescriptor,
+        payload: Mutex<Option<String>>,
+    }
+
+    impl FakeEngine {
+        fn new() -> Self {
+            Self {
+                descriptor: ProfileDescriptor {
+                    id: TRUSTMARK_Q_BCH5_PROFILE.to_owned(),
+                    algorithm: "trustmark".to_owned(),
+                    version: 1,
+                    payload_codec: "binary-bch5".to_owned(),
+                    payload_bits: 61,
+                    capabilities: vec![Capability::Embed, Capability::Detect],
+                    media_types: vec!["image/png".to_owned()],
+                    runtime: "test".to_owned(),
+                    artifacts: vec![ArtifactDescriptor {
+                        name: "test-model".to_owned(),
+                        sha256: "0".repeat(64),
+                    }],
+                },
+                payload: Mutex::new(None),
+            }
+        }
+    }
+
+    impl WatermarkEngine for FakeEngine {
+        fn descriptor(&self) -> &ProfileDescriptor {
+            &self.descriptor
+        }
+
+        fn embed(
+            &self,
+            image: &DynamicImage,
+            payload: &str,
+            _strength: f32,
+        ) -> Result<DynamicImage> {
+            *self.payload.lock().unwrap() = Some(payload.to_owned());
+            Ok(image.clone())
+        }
+
+        fn detect(&self, _image: &DynamicImage) -> Result<Option<String>> {
+            Ok(self.payload.lock().unwrap().clone())
+        }
+    }
+
+    fn ready_state() -> AppState {
+        let engine = Arc::new(FakeEngine::new());
+        let mut application = Underprint::default();
+        application.register(engine).unwrap();
+        AppState::ready(
+            application,
+            CapabilitiesReport::new(true, None, default_runtime(), vec![descriptor()]),
+            None,
+            1,
+            100,
+        )
+    }
+
+    fn png() -> Vec<u8> {
+        serialize_png(&DynamicImage::new_rgb8(320, 180), &ImagePolicy::default()).unwrap()
+    }
+
+    fn multipart(parts: &[(&str, &[u8])]) -> (String, Vec<u8>) {
+        let boundary = "underprint-test-boundary";
+        let mut body = Vec::new();
+        for (name, value) in parts {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
+            );
+            body.extend_from_slice(value);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        (format!("multipart/form-data; boundary={boundary}"), body)
     }
 
     #[tokio::test]
@@ -671,6 +840,49 @@ mod tests {
         ] {
             assert!(OPENAPI.contains(path));
         }
+    }
+
+    #[tokio::test]
+    async fn schematio_compatibility_contract_round_trips() {
+        let token = "0".repeat(61);
+        let image = png();
+        let (content_type, body) =
+            multipart(&[("image", image.as_slice()), ("token", token.as_bytes())]);
+        let app = router(ready_state(), Duration::from_secs(2));
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/embed")
+                    .header(header::CONTENT_TYPE, content_type)
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["x-watermark-token"], token);
+        assert_eq!(response.headers()["x-watermark-model"], SCHEMATIO_MODEL);
+        assert!(response.headers().contains_key("x-underprint-report"));
+        let protected = to_bytes(response.into_body(), 64 * 1024 * 1024)
+            .await
+            .unwrap();
+
+        let (content_type, body) = multipart(&[("image", protected.as_ref())]);
+        let response = app
+            .oneshot(
+                Request::post("/decode")
+                    .header(header::CONTENT_TYPE, content_type)
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 4096).await.unwrap();
+        let decoded: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(decoded["present"], true);
+        assert_eq!(decoded["token"], token);
+        assert_eq!(decoded["model"], SCHEMATIO_MODEL);
     }
 
     #[test]

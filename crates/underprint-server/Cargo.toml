@@ -21,3 +21,6 @@ tracing-subscriber.workspace = true
 underprint.workspace = true
 underprint-trustmark.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+image.workspace = true
