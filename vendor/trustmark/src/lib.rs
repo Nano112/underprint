@@ -242,11 +242,15 @@ impl Trustmark {
         decode_size: u32,
         resize_mode: ResizeMode,
     ) -> Result<String, Error> {
+        let version = self.version;
         let img: ort::Value<ort::TensorValueType<f32>> =
             ModelImage(decode_size, self.variant, img, resize_mode).try_into()?;
         let outputs = self.decoder()?.run(ort::inputs!["image" => img]?)?;
         let watermark = outputs["output"].try_extract_tensor::<f32>()?.to_owned();
         let watermark: Bits = watermark.try_into()?;
+        if watermark.get_version() != version {
+            return Err(Error::CorruptWatermark);
+        }
         Ok(watermark.get_data())
     }
 }
