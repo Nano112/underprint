@@ -48,7 +48,7 @@ use ort::{CPUExecutionProvider, GraphOptimizationLevel, Session, SessionInputVal
 
 use self::{
     bits::Bits,
-    image_processing::{ModelImage, ResidualImage},
+    image_processing::{ModelImage, ResidualImage, ResizeMode},
 };
 
 mod bits;
@@ -191,7 +191,7 @@ impl Trustmark {
         let encode_size = 256;
 
         let input_img: ort::Value<ort::TensorValueType<f32>> =
-            ModelImage(encode_size, variant, img).try_into()?;
+            ModelImage(encode_size, variant, img, ResizeMode::Fast).try_into()?;
         let bits: ort::Value<ort::TensorValueType<f32>> =
             Bits::apply_error_correction_and_schema(watermark, self.version)?.into();
         let inputs = [
@@ -221,14 +221,30 @@ impl Trustmark {
 
     /// Decode a watermark from an image.
     pub fn decode(&mut self, img: &DynamicImage) -> Result<String, Error> {
-        // P variant has a smaller decode size
+        // The distributed ONNX graphs have fixed input dimensions: Q/C/B use
+        // 256x256 and P uses 224x224.
         let decode_size = if self.variant == Variant::P { 224 } else { 256 };
 
+        match self.decode_with_resize(img, decode_size, ResizeMode::Fast) {
+            Err(Error::CorruptWatermark) => {
+                // Historical Python-produced marks can sit close to a bit
+                // threshold. Try the reference image crate resampler before
+                // declaring the BCH payload corrupt.
+                self.decode_with_resize(img, decode_size, ResizeMode::Compatibility)
+            }
+            result => result,
+        }
+    }
+
+    fn decode_with_resize(
+        &mut self,
+        img: &DynamicImage,
+        decode_size: u32,
+        resize_mode: ResizeMode,
+    ) -> Result<String, Error> {
         let img: ort::Value<ort::TensorValueType<f32>> =
-            ModelImage(decode_size, self.variant, img).try_into()?;
-        let outputs = self.decoder()?.run(ort::inputs![
-            "image" => img,
-        ]?)?;
+            ModelImage(decode_size, self.variant, img, resize_mode).try_into()?;
+        let outputs = self.decoder()?.run(ort::inputs!["image" => img]?)?;
         let watermark = outputs["output"].try_extract_tensor::<f32>()?.to_owned();
         let watermark: Bits = watermark.try_into()?;
         Ok(watermark.get_data())

@@ -38,7 +38,14 @@ pub(super) struct ModelImage<'a>(
     pub(super) u32,
     pub(super) Variant,
     pub(super) &'a DynamicImage,
+    pub(super) ResizeMode,
 );
+
+#[derive(Clone, Copy)]
+pub(super) enum ResizeMode {
+    Fast,
+    Compatibility,
+}
 
 pub(super) struct ResidualImage(pub(super) u32, pub(super) Variant, pub(super) ArrayD<f32>);
 
@@ -69,15 +76,25 @@ pub enum Error {
 impl TryFrom<ModelImage<'_>> for ort::Value<TensorValueType<f32>> {
     type Error = Error;
 
-    fn try_from(ModelImage(size, variant, img): ModelImage<'_>) -> Result<Self, Self::Error> {
+    fn try_from(
+        ModelImage(size, variant, img, resize_mode): ModelImage<'_>,
+    ) -> Result<Self, Self::Error> {
         let (w, h, xpos, ypos) = center_crop_size_and_offset(variant, img);
 
-        let options = ResizeOptions::new()
-            .crop(xpos as f64, ypos as f64, w as f64, h as f64)
-            .resize_alg(ResizeAlg::Interpolation(
-                fast_image_resize::FilterType::Bilinear,
-            ));
-        let modified_img = resize_img(img, size, size, options)?;
+        let modified_img = match resize_mode {
+            ResizeMode::Fast => {
+                let options = ResizeOptions::new()
+                    .crop(xpos as f64, ypos as f64, w as f64, h as f64)
+                    .resize_alg(ResizeAlg::Interpolation(
+                        fast_image_resize::FilterType::Bilinear,
+                    ));
+                resize_img(img, size, size, options)?
+            }
+            ResizeMode::Compatibility => {
+                img.crop_imm(xpos, ypos, w, h)
+                    .resize_exact(size, size, FilterType::Triangle)
+            }
+        };
 
         let img = modified_img.into_rgb32f().into_vec();
         let array = Array::from(img);
