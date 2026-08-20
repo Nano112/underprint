@@ -1,4 +1,11 @@
-use std::{env, io, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    env, io,
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use underprint::{CapabilitiesReport, Underprint};
 use underprint_server::{AppState, default_runtime, router};
@@ -6,6 +13,11 @@ use underprint_trustmark::{TrustmarkEngine, descriptor, verify_models};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if env::args().nth(1).as_deref() == Some("--healthcheck") {
+        healthcheck(env::args().nth(2).as_deref().unwrap_or("127.0.0.1:8080"))?;
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .json()
         .with_env_filter(
@@ -45,6 +57,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
+}
+
+fn healthcheck(address: &str) -> io::Result<()> {
+    let mut stream = TcpStream::connect_timeout(
+        &address.parse().map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid address: {error}"),
+            )
+        })?,
+        Duration::from_secs(3),
+    )?;
+    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    stream.write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+    let mut response = [0_u8; 256];
+    let read = stream.read(&mut response)?;
+    if response[..read].starts_with(b"HTTP/1.1 200") {
+        Ok(())
+    } else {
+        Err(io::Error::other("Underprint health endpoint is not ready"))
+    }
 }
 
 async fn shutdown_signal() {

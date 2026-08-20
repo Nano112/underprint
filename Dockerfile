@@ -17,4 +17,6 @@ ENV UNDERPRINT_BIND=0.0.0.0:8080 \
     UNDERPRINT_REQUEST_TIMEOUT_SECONDS=30 \
     RUST_LOG=underprint_server=info,tower_http=info
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["underprint-server", "--healthcheck", "127.0.0.1:8080"]
 ENTRYPOINT ["/usr/local/bin/underprint-server"]
